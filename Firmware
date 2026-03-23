@@ -1,0 +1,149 @@
+#include "Arduino.h"
+#include "SD.h"
+#include "FS.h"
+#include "Audio.h"
+
+// SD Card (SPI)
+#define SD_CS    5
+#define SD_MOSI  23
+#define SD_MISO  19
+#define SD_SCK   18
+
+// I2S DAC (MAX98357A or PCM5102)
+#define I2S_BCLK  26
+#define I2S_LRC   25
+#define I2S_DOUT  22
+
+// Buttons
+#define BTN_PREV   32  // Previous track
+#define BTN_PLAY   33  // Play/Pause
+#define BTN_NEXT   27  // Next track
+
+Audio audio;
+
+String tracks[100];
+int trackCount = 0;
+int currentTrack = 0;
+bool isPlaying = false;
+
+// Button debounce
+unsigned long lastBtnPress = 0;
+const int debounceDelay = 250;
+
+void setup() {
+  Serial.begin(115200);
+  Serial.println("ESP32 MP3 Player Starting...");
+
+  // Setup buttons with internal pullup
+  pinMode(BTN_PREV, INPUT_PULLUP);
+  pinMode(BTN_PLAY, INPUT_PULLUP);
+  pinMode(BTN_NEXT, INPUT_PULLUP);
+
+  // Initialize SD card
+  SPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+  if (!SD.begin(SD_CS)) {
+    Serial.println("SD Card mount failed!");
+    while (1) delay(100);
+  }
+  Serial.println("SD Card mounted.");
+
+  // Scan for MP3 files
+  scanForTracks("/");
+  Serial.printf("Found %d tracks\n", trackCount);
+
+  // Initialize audio
+  audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+  audio.setVolume(15);  // 0-21
+
+  // Play first track if available
+  if (trackCount > 0) {
+    playTrack(0);
+  }
+}
+
+void loop() {
+  audio.loop();
+  handleButtons();
+}
+void handleButtons() {
+  if (millis() - lastBtnPress < debounceDelay) return;
+
+  // Previous track
+  if (digitalRead(BTN_PREV) == LOW) {
+    lastBtnPress = millis();
+    prevTrack();
+  }
+
+  // Play/Pause
+  if (digitalRead(BTN_PLAY) == LOW) {
+    lastBtnPress = millis();
+    togglePlayPause();
+  }
+
+  // Next track
+  if (digitalRead(BTN_NEXT) == LOW) {
+    lastBtnPress = millis();
+    nextTrack();
+  }
+}
+
+void playTrack(int index) {
+  if (index < 0 || index >= trackCount) return;
+  
+  currentTrack = index;
+  audio.connecttoFS(SD, tracks[currentTrack].c_str());
+  isPlaying = true;
+  
+  Serial.printf("Playing: %s\n", tracks[currentTrack].c_str());
+}
+
+void togglePlayPause() {
+  if (isPlaying) {
+    audio.pauseResume();
+    isPlaying = false;
+    Serial.println("Paused");
+  } else {
+    audio.pauseResume();
+    isPlaying = true;
+    Serial.println("Resumed");
+  }
+}
+
+void nextTrack() {
+  currentTrack++;
+  if (currentTrack >= trackCount) currentTrack = 0;
+  playTrack(currentTrack);
+}
+
+void prevTrack() {
+  currentTrack--;
+  if (currentTrack < 0) currentTrack = trackCount - 1;
+  playTrack(currentTrack);
+}
+
+// ============== FILE SCANNING ==============
+void scanForTracks(const char* dirname) {
+  File root = SD.open(dirname);
+  if (!root || !root.isDirectory()) return;
+
+  File file = root.openNextFile();
+  while (file && trackCount < 100) {
+    if (!file.isDirectory()) {
+      String filename = String(file.name());
+      if (filename.endsWith(".mp3") || filename.endsWith(".MP3")) {
+        tracks[trackCount] = String(dirname) + "/" + filename;
+        trackCount++;
+      }
+    }
+    file = root.openNextFile();
+  }
+}
+
+void audio_info(const char *info) {
+  Serial.printf("Audio info: %s\n", info);
+}
+
+void audio_eof_mp3(const char *info) {
+  Serial.println("Track ended, playing next...");
+  nextTrack();
+}
