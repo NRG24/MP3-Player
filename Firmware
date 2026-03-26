@@ -1,25 +1,3 @@
-/*
- * ESP32 MP3 Player with Spotify Integration
- * 
- * Features:
- * - Local SD card MP3 playback
- * - Spotify Web API control via BLE commands
- * - 3 tactile button control (prev/play/next)
- * - Mode switching between local and Spotify
- * 
- * Hardware:
- * - ESP32 (any variant)
- * - SD Card module (SPI)
- * - I2S DAC (MAX98357A or PCM5102)
- * - 3x Tactile buttons
- * 
- * Libraries Required:
- * - ESP32-audioI2S by Schreibfaul1
- * - ArduinoJson
- * 
- * Author: GSR Streamer Project
- * Date: March 2026
- */
 
 #include "Arduino.h"
 #include "WiFi.h"
@@ -33,46 +11,33 @@
 #include "BLEUtils.h"
 #include "BLE2902.h"
 
-// ==================== CONFIGURATION ====================
 
-// WiFi credentials (for Spotify API)
 const char* WIFI_SSID = "YOUR_WIFI_SSID";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 
-// Spotify credentials
-// Get these from https://developer.spotify.com/dashboard
 const char* SPOTIFY_CLIENT_ID = "YOUR_SPOTIFY_CLIENT_ID";
 const char* SPOTIFY_REFRESH_TOKEN = "YOUR_SPOTIFY_REFRESH_TOKEN";
 
-// ==================== PIN DEFINITIONS ====================
-
-// SD Card (SPI)
 #define SD_CS    5
 #define SD_MOSI  23
 #define SD_MISO  19
 #define SD_SCK   18
 
-// I2S DAC (MAX98357A or PCM5102)
 #define I2S_BCLK  26
 #define I2S_LRC   25
 #define I2S_DOUT  22
 
-// Buttons (active LOW with internal pullup)
-#define BTN_PREV   32  // Previous track / Volume down (long press)
-#define BTN_PLAY   33  // Play/Pause / Mode switch (long press)
-#define BTN_NEXT   27  // Next track / Volume up (long press)
+#define BTN_PREV   32 
+#define BTN_PLAY   33 
+#define BTN_NEXT   27 
 
-// Optional LED indicator
-#define LED_PIN    2   // Built-in LED on most ESP32 boards
 
-// ==================== BLE CONFIGURATION ====================
+#define LED_PIN    2   
+
 
 #define SERVICE_UUID        "12345678-1234-1234-1234-123456789abc"
 #define CHAR_COMMAND_UUID   "12345678-1234-1234-1234-123456789abd"
-#define CHAR_STATUS_UUID    "12345678-1234-1234-1234-123456789abe"
-
-// ==================== GLOBALS ====================
-
+#define CHAR_STATUS_UUID    "12345678-
 Audio audio;
 
 // Playback mode
@@ -108,8 +73,6 @@ BLEServer* pServer = NULL;
 BLECharacteristic* pCommandChar = NULL;
 BLECharacteristic* pStatusChar = NULL;
 bool deviceConnected = false;
-
-// ==================== BLE CALLBACKS ====================
 
 class ServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) {
@@ -164,9 +127,6 @@ class CommandCallbacks : public BLECharacteristicCallbacks {
     }
   }
 };
-
-// ==================== SETUP ====================
-
 void setup() {
   Serial.begin(115200);
   Serial.println("\n========================================");
@@ -233,8 +193,6 @@ void setup() {
   Serial.println("========================================\n");
 }
 
-// ==================== MAIN LOOP ====================
-
 void loop() {
   // Handle audio (required for local playback)
   if (currentMode == MODE_LOCAL) {
@@ -263,10 +221,8 @@ void loop() {
   }
 }
 
-// ==================== BLE SETUP ====================
-
 void setupBLE() {
-  Serial.print("Initializing BLE... ");
+  Serial.print("Initializing BLE ");
   
   BLEDevice::init("ESP32-MP3-Spotify");
   pServer = BLEDevice::createServer();
@@ -323,8 +279,6 @@ void updateBLEStatus() {
   pStatusChar->setValue(output.c_str());
   pStatusChar->notify();
 }
-
-// ==================== BUTTON HANDLING ====================
 
 void handleButtons() {
   unsigned long now = millis();
@@ -397,7 +351,6 @@ void handleButtons() {
   }
 }
 
-// ==================== MODE SWITCHING ====================
 
 void switchMode(PlayMode newMode) {
   if (newMode == currentMode) return;
@@ -440,8 +393,6 @@ void setVolume(int newVol) {
     spotifySetVolume(volume * 5); // Convert 0-21 to 0-100
   }
 }
-
-// ==================== LOCAL PLAYBACK ====================
 
 void scanForTracks(const char* dirname) {
   File root = SD.open(dirname);
@@ -516,8 +467,6 @@ void localPrev() {
   if (currentTrack < 0) currentTrack = trackCount - 1;
   localPlayTrack(currentTrack);
 }
-
-// ==================== SPOTIFY API ====================
 
 bool ensureSpotifyToken() {
   if (spotifyAccessToken.length() == 0) {
@@ -661,8 +610,6 @@ void spotifySetVolume(int volumePercent) {
   String endpoint = "/me/player/volume?volume_percent=" + String(volumePercent);
   spotifyApiCall("PUT", endpoint.c_str());
 }
-
-// ==================== AUDIO CALLBACKS ====================
 
 // Called when audio info is available
 void audio_info(const char *info) {
